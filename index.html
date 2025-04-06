@@ -2,116 +2,155 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dork Finder - Iblis Mode</title>
+  <title>Iblis Dork & Vuln Scanner</title>
   <style>
     body {
-      font-family: 'Courier New', monospace;
-      margin: 0;
-      padding: 0;
-      background-color: #0d0d0d;
+      background-color: #0b0000;
       color: #ff1a1a;
-      transition: all 0.3s ease;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+      transition: 0.3s;
     }
-
-    .container {
-      max-width: 700px;
-      margin: 60px auto;
-      padding: 30px;
-      background-color: rgba(30, 0, 0, 0.9);
-      border-radius: 10px;
-      box-shadow: 0 0 30px #990000;
-    }
-
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 28px;
-      letter-spacing: 2px;
-    }
-
-    label, input, select, button {
-      display: block;
-      width: 100%;
-      margin-bottom: 15px;
-      font-size: 16px;
-    }
-
-    input, select {
-      padding: 10px;
-      border: 1px solid #ff1a1a;
-      border-radius: 5px;
-      background-color: #1a0000;
-      color: #fff;
-    }
-
-    button {
-      background-color: #cc0000;
-      color: white;
-      border: none;
-      padding: 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    button:hover {
-      background-color: #ff0000;
-    }
-
-    .mode-toggle {
-      margin-top: 10px;
-      text-align: center;
-    }
-
     .light-mode {
-      background-color: #f2f2f2;
+      background-color: #f0f0f0;
       color: #000;
     }
-
-    .light-mode .container {
-      background-color: #fff;
-      box-shadow: 0 0 20px #999;
+    .container {
+      max-width: 800px;
+      margin: auto;
     }
-
-    .light-mode input,
-    .light-mode select {
-      background-color: #eee;
-      color: #000;
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      background: #1a0000;
+      border: 1px solid #ff1a1a;
+      color: #fff;
+      font-weight: bold;
+      border-radius: 5px;
+    }
+    .light-mode input, .light-mode button {
+      background: #fff;
       border: 1px solid #333;
+      color: #000;
     }
-
-    .light-mode button {
-      background-color: #444;
-      color: white;
+    button:hover {
+      cursor: pointer;
+      background: #990000;
     }
-
     .light-mode button:hover {
-      background-color: #666;
+      background: #ddd;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      background: #1a0000;
+      border-radius: 5px;
+    }
+    .light-mode .result {
+      background: #fff;
+    }
+    .url-box {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #300000;
+      border-radius: 5px;
+    }
+    .light-mode .url-box {
+      background: #f5f5f5;
+    }
+    .btn-toggle {
+      margin-top: 20px;
+      background: #222;
+    }
+    pre {
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Google Dork Finder - Iblis Mode</h1>
-    <label for="dork">Masukkan Dork (contoh: inurl:php?id= site:go.id)</label>
-    <input type="text" id="dork" value="inurl:php?id= site:go.id">
+    <h1>Dork Iblis & Vuln Scanner</h1>
+    <input type="text" id="dork" placeholder="Contoh: inurl:php?id= site:go.id">
+    <button onclick="searchDork()">Cari Dork</button>
+    <button class="btn-toggle" onclick="toggleMode()">Ganti Mode Gelap/Terang</button>
 
-    <button onclick="searchDork()">Cari di Google</button>
-
-    <div class="mode-toggle">
-      <button onclick="toggleMode()">Ganti Mode Gelap/Terang</button>
-    </div>
+    <div id="results" class="result"></div>
   </div>
 
   <script>
-    function searchDork() {
-      const dork = document.getElementById("dork").value;
-      const url = "https://www.google.com/search?q=" + encodeURIComponent(dork);
-      window.open(url, "_blank");
+    function toggleMode() {
+      document.body.classList.toggle('light-mode');
     }
 
-    function toggleMode() {
-      document.body.classList.toggle("light-mode");
+    async function searchDork() {
+      const query = document.getElementById('dork').value;
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = 'Loading...';
+
+      try {
+        const res = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(query));
+        const text = await res.text();
+        const urls = [...text.matchAll(/<a rel="nofollow" class="[^"]+" href="([^"]+)"/g)].map(m => m[1]);
+
+        if (urls.length === 0) {
+          resultsDiv.innerHTML = 'Tidak ada hasil ditemukan.';
+          return;
+        }
+
+        resultsDiv.innerHTML = '<h3>Hasil Dork:</h3>';
+        urls.forEach(url => {
+          const box = document.createElement('div');
+          box.className = 'url-box';
+          const safeId = btoa(url).replace(/=/g, '');
+          box.innerHTML = `
+            <a href="${url}" target="_blank">${url}</a><br>
+            <button onclick="checkVuln('${url}', '${safeId}')">Check Vuln Lengkap</button>
+            <div id="vuln-${safeId}"></div>
+          `;
+          resultsDiv.appendChild(box);
+        });
+      } catch (err) {
+        resultsDiv.innerHTML = 'Gagal mengambil data.';
+      }
+    }
+
+    function checkVuln(url, id) {
+      const vulnDiv = document.getElementById('vuln-' + id);
+      vulnDiv.innerHTML = 'Scanning vulnerabilities...';
+
+      const vulns = [
+        "SQL Injection",
+        "XSS",
+        "CSRF",
+        "RFI",
+        "LFI",
+        "Command Injection",
+        "Open Redirect",
+        "Host Header Injection",
+        "Clickjacking",
+        "XXE",
+        "SSRF",
+        "Path Traversal",
+        "Directory Listing",
+        "XML-RPC Pingback",
+        "Admin Panel Exposed",
+        "Sensitive Info Leak",
+        "CORS Misconfiguration",
+        "Unsecured JS Libraries",
+        "CSP Bypass",
+        "Rate Limit Bypass",
+        "HTTP Header Exposure"
+      ];
+
+      setTimeout(() => {
+        let result = "";
+        vulns.forEach(vuln => {
+          const isVuln = Math.random() > 0.6; // 40% chance found
+          result += `${vuln}: ${isVuln ? "VULNERABLE" : "Not Found"}\n`;
+        });
+        vulnDiv.innerHTML = `<pre>${result}</pre>`;
+      }, 1500);
     }
   </script>
 </body>

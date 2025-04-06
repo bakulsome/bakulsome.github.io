@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Iblis Scanner</title>
+  <title>Web Tools by Agus</title>
   <style>
     body {
       background: black;
@@ -16,7 +16,7 @@
     }
     input, button, textarea {
       padding: 8px;
-      margin: 5px;
+      margin: 5px 0;
       background: #111;
       color: red;
       border: 1px solid red;
@@ -36,84 +36,102 @@
     .light .box {
       background: #ddd;
     }
+    a { color: red; }
+    .light a { color: blue; }
     pre {
-      font-size: 12px;
       white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
-  <h2>IBLIS SCANNER</h2>
-  <label><b>Dork:</b></label>
-  <input id="dork" placeholder="Contoh: inurl:php?id= site:go.id">
-  <button onclick="dorking()">Dork Sekarang</button>
+  <h2>Web Tools by Agus</h2>
+
+  <label><b>Dork Query:</b></label>
+  <input id="dork" placeholder="Example: inurl:php?id= site:go.id">
+  <button onclick="startDork()">Start Dork</button>
 
   <div class="box">
-    <h3>Hasil Dork:</h3>
-    <div id="hasil"></div>
+    <h3>Dork Results:</h3>
+    <div id="dorkResults"></div>
   </div>
 
-  <label><b>Masukkan URL untuk Scan Vuln:</b></label>
-  <textarea id="urls" placeholder="https://example.com/page.php?id=1"></textarea>
-  <button onclick="scanVuln()">Scan Vuln</button>
+  <label><b>Insert URLs to Scan:</b></label>
+  <textarea id="urlInput" placeholder="https://example.com/page.php?id=1"></textarea>
+  <button onclick="scanVulnerabilities()">Scan Vulnerabilities</button>
 
   <div class="box">
-    <h3>Hasil Scan:</h3>
-    <div id="scan"></div>
+    <h3>Scan Results:</h3>
+    <div id="scanResults"></div>
   </div>
 
-  <button onclick="toggleMode()">Ganti Mode</button>
+  <button onclick="toggleTheme()">Toggle Dark/Light Mode</button>
 
   <script>
-    function toggleMode() {
+    function toggleTheme() {
       document.body.classList.toggle('light');
     }
 
-    async function dorking() {
+    async function startDork() {
       const query = document.getElementById('dork').value;
-      const hasil = document.getElementById('hasil');
-      hasil.innerHTML = 'Loading...';
+      const output = document.getElementById('dorkResults');
+      output.innerHTML = 'Searching...';
 
       try {
         const proxy = 'https://corsproxy.io/?';
-        const url = proxy + encodeURIComponent("https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query));
-        const res = await fetch(url);
-        const text = await res.text();
-        const links = [...text.matchAll(/<a[^>]+href="(http[^"]+)"/g)].map(m => m[1]);
+        const duckURL = proxy + encodeURIComponent("https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query));
+        const response = await fetch(duckURL);
+        const html = await response.text();
+        const links = [];
+        const regex = /<a[^>]+href="(http[^"]+)"/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+          if (!links.includes(match[1])) links.push(match[1]);
+        }
 
-        if (links.length === 0) return hasil.innerHTML = "Tidak ada hasil ditemukan.";
+        if (links.length === 0) {
+          output.innerHTML = 'No results found.';
+          return;
+        }
 
-        hasil.innerHTML = '';
-        links.forEach((link, i) => {
-          hasil.innerHTML += `${i + 1}. <a href="${link}" target="_blank">${link}</a><br>`;
+        output.innerHTML = `<b>Total URLs found:</b> ${links.length}<br><br>`;
+        links.forEach((url, index) => {
+          output.innerHTML += `${index + 1}. <a href="${url}" target="_blank">${url}</a><br>`;
         });
 
-        // Auto-fill textarea untuk scan
-        document.getElementById('urls').value = links.join('\n');
-      } catch (e) {
-        hasil.innerHTML = 'Gagal ambil hasil.';
+        document.getElementById('urlInput').value = links.join('\n');
+      } catch (error) {
+        output.innerHTML = 'Failed to fetch results.';
       }
     }
 
-    function scanVuln() {
-      const scan = document.getElementById('scan');
-      const lines = document.getElementById('urls').value.split('\n').filter(Boolean);
-      if (lines.length === 0) return scan.innerHTML = 'Masukkan URL dulu.';
+    function scanVulnerabilities() {
+      const scanOutput = document.getElementById('scanResults');
+      const urls = document.getElementById('urlInput').value.split('\n').filter(Boolean);
+      if (urls.length === 0) {
+        scanOutput.innerHTML = 'Enter URLs first.';
+        return;
+      }
 
-      scan.innerHTML = '';
-      lines.forEach((url, i) => {
-        const result = simulateScan(url);
-        scan.innerHTML += `<pre><b>${i + 1}. ${url}</b>\n${result}</pre><hr>`;
+      scanOutput.innerHTML = '';
+      urls.forEach((url, index) => {
+        let report = `(${index + 1}) ${url}\n`;
+        const paramPart = url.split('?')[1];
+        if (paramPart) {
+          const params = paramPart.split('&');
+          params.forEach(p => {
+            const [key, val] = p.split('=');
+            if (/id|page|search|query/i.test(key)) {
+              report += `- ${key}=${val} → SQLi: VULNERABLE\n`;
+              report += `- ${key}=${val} → XSS: VULNERABLE\n`;
+            } else {
+              report += `- ${key}=${val} → SAFE\n`;
+            }
+          });
+        } else {
+          report += 'No parameters found.\n';
+        }
+        scanOutput.innerHTML += `<pre>${report}</pre><hr>`;
       });
-    }
-
-    function simulateScan(url) {
-      const vuln = [
-        "SQL Injection", "XSS", "CSRF", "RFI", "LFI",
-        "Command Injection", "XXE", "SSRF", "Open Redirect",
-        "Clickjacking", "CORS Misconfig", "CSP Bypass", "XML-RPC"
-      ];
-      return vuln.map(v => `${v}: ${Math.random() > 0.6 ? 'VULNERABLE' : 'SAFE'}`).join('\n');
     }
   </script>
 </body>

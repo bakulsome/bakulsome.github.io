@@ -56,7 +56,7 @@
   </div>
 
   <label><b>Insert URLs to Scan:</b></label>
-  <textarea id="urlInput" placeholder="https://example.com/page.php?id=1"></textarea>
+  <textarea id="urlInput" placeholder="https://example.com/page OR full URL with param"></textarea>
   <button onclick="scanVulnerabilities()">Scan Vulnerabilities</button>
 
   <div class="box">
@@ -115,24 +115,37 @@
       scanOutput.innerHTML = '';
       urls.forEach((url, index) => {
         let report = `(${index + 1}) ${url}\n`;
-        const paramPart = url.split('?')[1];
-        if (paramPart) {
+        const lowerUrl = url.toLowerCase();
+
+        // Predict parameter-based vulnerabilities
+        if (url.includes('?')) {
+          const paramPart = url.split('?')[1];
           const params = paramPart.split('&');
           params.forEach(p => {
             const [key, val] = p.split('=');
-            if (/id|page|search|query/i.test(key)) {
-              report += `- ${key}=${val} → SQLi: VULNERABLE\n`;
-              report += `- ${key}=${val} → XSS: VULNERABLE\n`;
+            if (/id|page|search|query|news|cat/i.test(key)) {
+              report += `- SQLi Possible: Try payload → ${url}&${key}=1' OR '1'='1\n`;
+              report += `- XSS Possible: Try payload → ${url}&${key}=<script>alert(1)</script>\n`;
             } else {
-              report += `- ${key}=${val} → SAFE\n`;
+              report += `- Parameter "${key}" seems safe\n`;
             }
           });
         } else {
-          report += 'No parameters found.\n';
+          // URL without params: try guessing
+          if (lowerUrl.includes('xmlrpc')) {
+            report += '- XMLRPC Detected → Might be vulnerable to brute-force or pingback attack\n';
+          } else if (lowerUrl.includes('login') || lowerUrl.includes('auth')) {
+            report += '- CSRF/Login form detected → Check CSRF token validation\n';
+          } else {
+            report += '- No parameters found.\n';
+            report += '- Guessing SQLi → Try: ' + url + '?id=1\' OR \'1\'=\'1\n';
+            report += '- Guessing XSS  → Try: ' + url + '?q=<script>alert(1)</script>\n';
+          }
         }
+
         scanOutput.innerHTML += `<pre>${report}</pre><hr>`;
       });
     }
   </script>
 </body>
-</html>
+  </html>

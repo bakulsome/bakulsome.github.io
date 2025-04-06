@@ -2,155 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Iblis Dork & Vuln Scanner</title>
+  <title>Iblis Web Scanner</title>
   <style>
     body {
-      background-color: #0b0000;
-      color: #ff1a1a;
-      font-family: 'Courier New', monospace;
+      background: #000;
+      color: #f00;
+      font-family: monospace;
       padding: 20px;
-      transition: 0.3s;
     }
     .light-mode {
-      background-color: #f0f0f0;
+      background: #fff;
       color: #000;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
     }
     input, button {
-      width: 100%;
       padding: 10px;
-      margin-top: 10px;
-      background: #1a0000;
-      border: 1px solid #ff1a1a;
-      color: #fff;
-      font-weight: bold;
-      border-radius: 5px;
+      margin: 5px 5px 10px 0;
+      background: #111;
+      color: #f00;
+      border: 1px solid #f00;
     }
     .light-mode input, .light-mode button {
-      background: #fff;
-      border: 1px solid #333;
+      background: #eee;
       color: #000;
-    }
-    button:hover {
-      cursor: pointer;
-      background: #990000;
-    }
-    .light-mode button:hover {
-      background: #ddd;
-    }
-    .result {
-      margin-top: 20px;
-      padding: 10px;
-      background: #1a0000;
-      border-radius: 5px;
-    }
-    .light-mode .result {
-      background: #fff;
+      border: 1px solid #000;
     }
     .url-box {
-      margin-bottom: 10px;
+      background: #111;
+      margin: 10px 0;
       padding: 10px;
-      background: #300000;
       border-radius: 5px;
     }
     .light-mode .url-box {
-      background: #f5f5f5;
-    }
-    .btn-toggle {
-      margin-top: 20px;
-      background: #222;
+      background: #ddd;
     }
     pre {
       font-size: 12px;
+      white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Dork Iblis & Vuln Scanner</h1>
-    <input type="text" id="dork" placeholder="Contoh: inurl:php?id= site:go.id">
-    <button onclick="searchDork()">Cari Dork</button>
-    <button class="btn-toggle" onclick="toggleMode()">Ganti Mode Gelap/Terang</button>
+  <h1>Scan Iblis</h1>
+  <input id="dork" placeholder="Contoh: inurl:php?id= site:go.id" style="width:60%">
+  <button onclick="cari()">Dork Google</button>
+  <button onclick="scanSemua()">Scan Semua URL</button>
+  <button onclick="toggleMode()">Ganti Mode</button>
 
-    <div id="results" class="result"></div>
-  </div>
+  <div id="hasil"></div>
 
   <script>
+    let urlList = [];
+
     function toggleMode() {
       document.body.classList.toggle('light-mode');
     }
 
-    async function searchDork() {
-      const query = document.getElementById('dork').value;
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = 'Loading...';
+    async function cari() {
+      const dork = document.getElementById('dork').value;
+      const hasil = document.getElementById('hasil');
+      hasil.innerHTML = 'Loading...';
+      urlList = [];
+
+      const proxyURL = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.google.com/search?q=${encodeURIComponent(dork)}`);
 
       try {
-        const res = await fetch('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(query));
-        const text = await res.text();
-        const urls = [...text.matchAll(/<a rel="nofollow" class="[^"]+" href="([^"]+)"/g)].map(m => m[1]);
-
-        if (urls.length === 0) {
-          resultsDiv.innerHTML = 'Tidak ada hasil ditemukan.';
+        const res = await fetch(proxyURL);
+        const html = await res.text();
+        const matches = [...html.matchAll(/<a href="\/url\?q=([^&]+)&/g)];
+        urlList = matches.map(m => decodeURIComponent(m[1])).filter(u => u.startsWith("http"));
+        if (urlList.length === 0) {
+          hasil.innerHTML = 'Tidak ada hasil ditemukan.';
           return;
         }
 
-        resultsDiv.innerHTML = '<h3>Hasil Dork:</h3>';
-        urls.forEach(url => {
-          const box = document.createElement('div');
-          box.className = 'url-box';
-          const safeId = btoa(url).replace(/=/g, '');
-          box.innerHTML = `
-            <a href="${url}" target="_blank">${url}</a><br>
-            <button onclick="checkVuln('${url}', '${safeId}')">Check Vuln Lengkap</button>
-            <div id="vuln-${safeId}"></div>
-          `;
-          resultsDiv.appendChild(box);
+        hasil.innerHTML = '<h3>Hasil URL:</h3>';
+        urlList.forEach((link, i) => {
+          hasil.innerHTML += `
+            <div class="url-box" id="box-${i}">
+              <b>${i+1}. <a href="${link}" target="_blank">${link}</a></b><br>
+              <div id="vuln-${i}">Belum discan.</div>
+            </div>`;
         });
       } catch (err) {
-        resultsDiv.innerHTML = 'Gagal mengambil data.';
+        hasil.innerHTML = 'Gagal mengambil hasil. Coba lagi.';
       }
     }
 
-    function checkVuln(url, id) {
-      const vulnDiv = document.getElementById('vuln-' + id);
-      vulnDiv.innerHTML = 'Scanning vulnerabilities...';
+    function scanSemua() {
+      if (urlList.length === 0) return alert("Cari dork dulu!");
+      urlList.forEach((url, i) => {
+        const targetDiv = document.getElementById(`vuln-${i}`);
+        targetDiv.innerHTML = 'Scanning...';
 
-      const vulns = [
-        "SQL Injection",
-        "XSS",
-        "CSRF",
-        "RFI",
-        "LFI",
-        "Command Injection",
-        "Open Redirect",
-        "Host Header Injection",
-        "Clickjacking",
-        "XXE",
-        "SSRF",
-        "Path Traversal",
-        "Directory Listing",
-        "XML-RPC Pingback",
-        "Admin Panel Exposed",
-        "Sensitive Info Leak",
-        "CORS Misconfiguration",
-        "Unsecured JS Libraries",
-        "CSP Bypass",
-        "Rate Limit Bypass",
-        "HTTP Header Exposure"
+        setTimeout(() => {
+          const results = simulateScan(url);
+          targetDiv.innerHTML = `<pre>${results}</pre>`;
+        }, 1000 + Math.random() * 1000);
+      });
+    }
+
+    function simulateScan(url) {
+      const vulnerabilities = [
+        "SQL Injection", "Cross Site Scripting (XSS)", "Cross Site Request Forgery (CSRF)",
+        "Remote File Inclusion (RFI)", "Local File Inclusion (LFI)", "Command Injection",
+        "Open Redirect", "XML External Entity (XXE)", "Server Side Request Forgery (SSRF)",
+        "Clickjacking", "CORS Misconfig", "CSP Bypass", "XML-RPC Enabled"
       ];
-
-      setTimeout(() => {
-        let result = "";
-        vulns.forEach(vuln => {
-          const isVuln = Math.random() > 0.6; // 40% chance found
-          result += `${vuln}: ${isVuln ? "VULNERABLE" : "Not Found"}\n`;
-        });
-        vulnDiv.innerHTML = `<pre>${result}</pre>`;
-      }, 1500);
+      return vulnerabilities.map(v => {
+        const status = Math.random() > 0.6 ? "VULNERABLE" : "SAFE";
+        return `${v}: ${status}`;
+      }).join('\n');
     }
   </script>
 </body>

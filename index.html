@@ -1,38 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
-  <title>Iblis Web Scanner</title>
+  <title>Iblis Scanner</title>
   <style>
     body {
-      background: #000;
-      color: #f00;
+      background: black;
+      color: red;
       font-family: monospace;
       padding: 20px;
     }
-    .light-mode {
-      background: #fff;
-      color: #000;
+    .light {
+      background: white;
+      color: black;
     }
-    input, button {
-      padding: 10px;
-      margin: 5px 5px 10px 0;
+    input, button, textarea {
+      padding: 8px;
+      margin: 5px;
       background: #111;
-      color: #f00;
-      border: 1px solid #f00;
+      color: red;
+      border: 1px solid red;
+      width: 100%;
     }
-    .light-mode input, .light-mode button {
+    .light input, .light button, .light textarea {
       background: #eee;
-      color: #000;
-      border: 1px solid #000;
+      color: black;
+      border: 1px solid black;
     }
-    .url-box {
+    .box {
       background: #111;
-      margin: 10px 0;
+      margin-top: 10px;
       padding: 10px;
       border-radius: 5px;
     }
-    .light-mode .url-box {
+    .light .box {
       background: #ddd;
     }
     pre {
@@ -42,76 +43,77 @@
   </style>
 </head>
 <body>
-  <h1>Scan Iblis</h1>
-  <input id="dork" placeholder="Contoh: inurl:php?id= site:go.id" style="width:60%">
-  <button onclick="cari()">Dork Google</button>
-  <button onclick="scanSemua()">Scan Semua URL</button>
+  <h2>IBLIS SCANNER</h2>
+  <label><b>Dork:</b></label>
+  <input id="dork" placeholder="Contoh: inurl:php?id= site:go.id">
+  <button onclick="dorking()">Dork Sekarang</button>
+
+  <div class="box">
+    <h3>Hasil Dork:</h3>
+    <div id="hasil"></div>
+  </div>
+
+  <label><b>Masukkan URL untuk Scan Vuln:</b></label>
+  <textarea id="urls" placeholder="https://example.com/page.php?id=1"></textarea>
+  <button onclick="scanVuln()">Scan Vuln</button>
+
+  <div class="box">
+    <h3>Hasil Scan:</h3>
+    <div id="scan"></div>
+  </div>
+
   <button onclick="toggleMode()">Ganti Mode</button>
 
-  <div id="hasil"></div>
-
   <script>
-    let urlList = [];
-
     function toggleMode() {
-      document.body.classList.toggle('light-mode');
+      document.body.classList.toggle('light');
     }
 
-    async function cari() {
-      const dork = document.getElementById('dork').value;
+    async function dorking() {
+      const query = document.getElementById('dork').value;
       const hasil = document.getElementById('hasil');
       hasil.innerHTML = 'Loading...';
-      urlList = [];
-
-      const proxyURL = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.google.com/search?q=${encodeURIComponent(dork)}`);
 
       try {
-        const res = await fetch(proxyURL);
-        const html = await res.text();
-        const matches = [...html.matchAll(/<a href="\/url\?q=([^&]+)&/g)];
-        urlList = matches.map(m => decodeURIComponent(m[1])).filter(u => u.startsWith("http"));
-        if (urlList.length === 0) {
-          hasil.innerHTML = 'Tidak ada hasil ditemukan.';
-          return;
-        }
+        const proxy = 'https://corsproxy.io/?';
+        const url = proxy + encodeURIComponent("https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query));
+        const res = await fetch(url);
+        const text = await res.text();
+        const links = [...text.matchAll(/<a[^>]+href="(http[^"]+)"/g)].map(m => m[1]);
 
-        hasil.innerHTML = '<h3>Hasil URL:</h3>';
-        urlList.forEach((link, i) => {
-          hasil.innerHTML += `
-            <div class="url-box" id="box-${i}">
-              <b>${i+1}. <a href="${link}" target="_blank">${link}</a></b><br>
-              <div id="vuln-${i}">Belum discan.</div>
-            </div>`;
+        if (links.length === 0) return hasil.innerHTML = "Tidak ada hasil ditemukan.";
+
+        hasil.innerHTML = '';
+        links.forEach((link, i) => {
+          hasil.innerHTML += `${i + 1}. <a href="${link}" target="_blank">${link}</a><br>`;
         });
-      } catch (err) {
-        hasil.innerHTML = 'Gagal mengambil hasil. Coba lagi.';
+
+        // Auto-fill textarea untuk scan
+        document.getElementById('urls').value = links.join('\n');
+      } catch (e) {
+        hasil.innerHTML = 'Gagal ambil hasil.';
       }
     }
 
-    function scanSemua() {
-      if (urlList.length === 0) return alert("Cari dork dulu!");
-      urlList.forEach((url, i) => {
-        const targetDiv = document.getElementById(`vuln-${i}`);
-        targetDiv.innerHTML = 'Scanning...';
+    function scanVuln() {
+      const scan = document.getElementById('scan');
+      const lines = document.getElementById('urls').value.split('\n').filter(Boolean);
+      if (lines.length === 0) return scan.innerHTML = 'Masukkan URL dulu.';
 
-        setTimeout(() => {
-          const results = simulateScan(url);
-          targetDiv.innerHTML = `<pre>${results}</pre>`;
-        }, 1000 + Math.random() * 1000);
+      scan.innerHTML = '';
+      lines.forEach((url, i) => {
+        const result = simulateScan(url);
+        scan.innerHTML += `<pre><b>${i + 1}. ${url}</b>\n${result}</pre><hr>`;
       });
     }
 
     function simulateScan(url) {
-      const vulnerabilities = [
-        "SQL Injection", "Cross Site Scripting (XSS)", "Cross Site Request Forgery (CSRF)",
-        "Remote File Inclusion (RFI)", "Local File Inclusion (LFI)", "Command Injection",
-        "Open Redirect", "XML External Entity (XXE)", "Server Side Request Forgery (SSRF)",
-        "Clickjacking", "CORS Misconfig", "CSP Bypass", "XML-RPC Enabled"
+      const vuln = [
+        "SQL Injection", "XSS", "CSRF", "RFI", "LFI",
+        "Command Injection", "XXE", "SSRF", "Open Redirect",
+        "Clickjacking", "CORS Misconfig", "CSP Bypass", "XML-RPC"
       ];
-      return vulnerabilities.map(v => {
-        const status = Math.random() > 0.6 ? "VULNERABLE" : "SAFE";
-        return `${v}: ${status}`;
-      }).join('\n');
+      return vuln.map(v => `${v}: ${Math.random() > 0.6 ? 'VULNERABLE' : 'SAFE'}`).join('\n');
     }
   </script>
 </body>
